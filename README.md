@@ -10,7 +10,7 @@ There's a global address, which is set in the modules settings, and a additional
 
 If you have a pagefield in your form, where one can choose from the potential users, that should be emailed you don't need to write extensive conditional lines like this:
 
-```
+```php
 personInCharge=SomeUser?someuser@example.com
 personInCharge=AnotherUser?anotheruser@example.com
 ```

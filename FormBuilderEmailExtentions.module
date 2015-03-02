@@ -1,0 +1,160 @@
+<?php
+
+/**
+ * Form Builder Email Extentions 
+ * Copyright (C) 2015 by Benjamin Milde 
+ *
+ * Originally build for madeprojects.com. Thank them for letting me share it.
+ *
+ */
+
+class FormBuilderEmailExtentions extends WireData implements Module, ConfigurableModule {
+
+	public static function getModuleInfo() {
+
+		return array(
+			'title' => 'Form Builder Email Extentions', 
+			'version' => 4, 
+			'summary' => 'Extentions to the way FormBuilder handles emails send to administrators.',
+			'singular' => true, 
+			'autoload' => true,
+			'required' => "FormBuilder"
+			);
+	}
+
+	public function init() {
+
+		// Get email from page field
+		$this->addHookBefore('FormBuilderProcessor::emailForm', $this, 'parseExtraEmailSyntax');
+		$this->addHookBefore('FormBuilderProcessor::emailForm', $this, 'changeFromEmail');
+		$this->addHookAfter('ProcessFormBuilder::buildEditForm', $this, 'addExtraEmailDescription');
+		$this->addHookAfter('ProcessFormBuilder::buildEditForm', $this, 'addEmailField');
+		$this->addHookBefore('FormBuilder::save', $this, 'saveAddedEmailField');
+	}
+
+
+	/**
+	 * Get email from page field
+	 *
+	 * Replaces "!formFieldName?pageEmailFieldName" with the actual email address
+	 *
+	 */
+
+	public function parseExtraEmailSyntax($event) {
+		$obj = $event->object;
+		$form = $event->arguments[0];
+
+		if(!strlen($obj->emailTo)) return false;
+
+		$lines = explode("\n", $obj->emailTo);
+		foreach($lines as $key => $line){
+
+			$line = trim($line);
+			if(substr($line, 0, 1) !== "!") continue;
+
+			// conditional address 2
+			// VARIABLES:     1:field name        2:email-field of page
+			if(!preg_match('/^! *([-_.a-zA-Z0-9]+) *\? *(.*) *$/', $line, $matches)) continue;
+
+			$field = trim($matches[1]);
+			$subfield = trim($matches[2]);
+
+			$inputfield = $form->get($field);
+			if(!$inputfield) continue;
+			$inputValue = $inputfield->attr('value');
+
+			if($subfield){
+				if(is_array($inputValue) || $inputValue instanceof PageArray){
+					foreach($inputValue as $p){
+						if($p->$subfield) $lines[] = $p->$subfield;
+					}
+				}else if(is_object($inputValue) || $inputValue instanceof Page){
+					if($inputValue->$subfield) $lines[] = $inputValue->$subfield;
+				}
+			}
+
+			unset($lines[$key]);
+		}
+
+		//$this->log->save("debug", implode(" | ", $lines));
+
+		$obj->emailTo = implode("\n", $lines);
+	}
+
+	public function addExtraEmailDescription($event) {
+		$form = $event->return;
+
+		$field = $form->get('form_emailTo');
+		$field->description = $field->description." ".$this->_('Additionally you may get the email from a field of a page in the form by specifying: "!formPageFieldName?pageFieldName" (see below, too).');
+		$field->notes = $field->notes . "\n" .  $this->_('!personInCharge?email');
+	}
+
+	/**
+	 * If no from email is supplied by field then change it to a default one.
+	 * The default email can be set globally in the module settings or per-form
+	 * in the forms "Action" tab.
+	 *
+	 */
+
+	public function changeFromEmail($event){
+		$obj = $event->object;
+		if(!strlen($obj->emailFrom)){
+			if(!strlen($obj->defaultEmailFrom)){
+				$obj->emailFrom = $this->defaultAdminMail;
+			}else{
+				$obj->emailFrom = $obj->defaultEmailFrom;
+			}
+		}
+	}
+
+	public function addEmailField($event) {
+		$form = $event->return;
+		$id = $form->get('form_id')->value;
+		$data = $this->forms->load($id);
+
+		// Currently $form->get('fieldsetEmail') returns null, therefore the hardcoded keys
+		$fieldsetEmail = $form->children[1]->children[3];
+
+		$field = $form->get('form_emailFrom');
+		$field->columnWidth = 50;
+		$field->description = $field->description . " " . __("This overrides the global and per-form default email address.");
+
+		$additionalField = $this->modules->get("InputfieldEmail");
+		$additionalField->columnWidth = 50;
+		$additionalField->attr('id+name', 'form_defaultEmailFrom'); 
+		$additionalField->attr('value', $data->defaultEmailFrom ? $data->defaultEmailFrom : ''); 
+		$additionalField->label = $this->_('Email per form');
+		$additionalField->description = $this->_('When emailing a form submission, we can optionally make the "From" line contain an email address specific to this form. By default it\'s '.$this->defaultAdminMail.'. You can change the global default in the module settings of FormBuilderExtentions.'); 
+
+		$fieldsetEmail->insertBefore($additionalField, $field);
+	}
+
+	public function saveAddedEmailField($event){
+		$form = $event->arguments[0];
+		$form->defaultEmailFrom = $this->sanitizer->email($this->input->post->form_defaultEmailFrom);
+	}
+
+	/**
+	 * Configurations for the Extentions
+	 *
+	 */
+
+	public static function getModuleConfigInputfields(array $data) {
+
+		if(isset($data['defaultAdminMail'])){
+			$defaultAdminMail = wire('sanitizer')->email($data['defaultAdminMail']);
+		}else{
+			$defaultAdminMail = '';
+		}
+
+		$inputfields = new InputfieldWrapper();
+
+		$f = wire('modules')->get('InputfieldEmail');
+		$f->label = __("Default Email for FormBuilder Administrator Emails");
+		$f->attr('id+name', 'defaultAdminMail');
+		$f->attr('value', $defaultAdminMail);
+		$inputfields->add($f);
+
+		return $inputfields;
+	}
+}

@@ -14,7 +14,7 @@ class FormBuilderEmailExtentions extends WireData implements Module, Configurabl
 
 		return array(
 			'title' => 'Form Builder Email Extentions', 
-			'version' => 4, 
+			'version' => 5, 
 			'summary' => 'Extentions to the way FormBuilder handles emails send to administrators.',
 			'singular' => true, 
 			'autoload' => true,
@@ -112,9 +112,6 @@ class FormBuilderEmailExtentions extends WireData implements Module, Configurabl
 		$id = $form->get('form_id')->value;
 		$data = $this->forms->load($id);
 
-		// Currently $form->get('fieldsetEmail') returns null, therefore the hardcoded keys
-		$fieldsetEmail = $form->children[1]->children[3];
-
 		$field = $form->get('form_emailFrom');
 		$field->columnWidth = 50;
 		$field->description = $field->description . " " . __("This overrides the global and per-form default email address.");
@@ -126,7 +123,7 @@ class FormBuilderEmailExtentions extends WireData implements Module, Configurabl
 		$additionalField->label = $this->_('Email per form');
 		$additionalField->description = $this->_('When emailing a form submission, we can optionally make the "From" line contain an email address specific to this form. By default it\'s '.$this->defaultAdminMail.'. You can change the global default in the module settings of FormBuilderExtentions.'); 
 
-		$fieldsetEmail->insertBefore($additionalField, $field);
+		$field->parent->insertBefore($additionalField, $field);
 	}
 
 	public function saveAddedEmailField($event){

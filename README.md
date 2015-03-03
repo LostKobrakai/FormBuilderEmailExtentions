@@ -22,3 +22,5 @@ You can simply add a email field to the template of those users and use the emai
 ```
 
 The syntax says get the user(s) from the field `personInCharge` and send email(s) to the addresses provided by the `email` field of the selected page.
+
+*Thanks to madeproject.com for letting me share this.*
